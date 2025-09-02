@@ -31,12 +31,12 @@ func main() {
 	}
 
 	dict := "ru.txt"
-	corrector, err := sc.NewSpellCorrector(cfg, dict)
+	corrector, err := sc.NewSpellCorrector(cfg, dict, nil)
 	if err != nil {
 		log.Fatalf("Ошибка инициализации: %v", err)
 	}
 
-	fmt.Println("Spell Corrector v2. Введите текст (quit для выхода).\n")
+	fmt.Println("Spell Corrector v2. Введите текст (quit для выхода).")
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("Текст: ")
