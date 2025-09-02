@@ -380,8 +380,9 @@ func (a *MorphAnalyzer) Parse(word string) []*Parsed {
 	}
 
 	// Если узел финальный, собираем все варианты разбора, используя его payload.
-	var results []*Parsed
+	//var results []*Parsed
 	payloadStart, payloadEnd := node.PayloadIdx, node.PayloadIdx+uint32(node.PayloadLen)
+	results := make([]*Parsed, 0, node.PayloadLen)
 	for _, info := range a.payloads[payloadStart:payloadEnd] {
 		results = append(results, newParsed(word, a.LemmaPool[info.LemmaID], a.tagsPool[info.TagsID]))
 	}

@@ -3,7 +3,7 @@ package symspell
 import (
 	"log"
 
-	"corrector/internal"
+	internal "corrector/internal/symspell"
 	"corrector/pkg/items"
 	"corrector/pkg/options"
 	"corrector/pkg/verbosity"
@@ -52,10 +52,10 @@ func NewSymSpellWithLoadBigramDictionary(vocabDirPath, bigramDirPath, exactDirPa
 }
 
 type SymSpell interface {
-    Lookup(phrase string, verbosity verbosity.Verbosity, maxEditDistance int) ([]items.SuggestItem, error)
-    LookupCompound(phrase string, maxEditDistance int) *items.SuggestItem
-    LoadBigramDictionary(corpusPath string, termIndex, countIndex int, separator string) (bool, error)
-    LoadDictionary(corpusPath string, termIndex int, countIndex int, separator string) (bool, error)
-    LoadExactDictionary(corpusPath string, separator string) (bool, error)
-    CreateDictionaryEntry(term string, count int) bool
+	Lookup(phrase string, verbosity verbosity.Verbosity, maxEditDistance int) ([]items.SuggestItem, error)
+	LookupCompound(phrase string, maxEditDistance int) *items.SuggestItem
+	LoadBigramDictionary(corpusPath string, termIndex, countIndex int, separator string) (bool, error)
+	LoadDictionary(corpusPath string, termIndex int, countIndex int, separator string) (bool, error)
+	LoadExactDictionary(corpusPath string, separator string) (bool, error)
+	CreateDictionaryEntry(term string, count int) bool
 }
