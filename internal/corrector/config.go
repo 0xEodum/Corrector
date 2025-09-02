@@ -33,7 +33,8 @@ type SuggestionInfo struct {
 }
 
 type CorrectionResult struct {
-	Original    string                 `json:"original"`
-	Corrected   string                 `json:"corrected"`
-	Suggestions map[int]SuggestionInfo `json:"suggestions"`
+	Original     string                 `json:"original"`
+	Corrected    string                 `json:"corrected"`
+	Alternatives []string               `json:"alternatives,omitempty"`
+	Suggestions  map[int]SuggestionInfo `json:"suggestions"`
 }
