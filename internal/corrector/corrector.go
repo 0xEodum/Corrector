@@ -17,6 +17,7 @@ import (
 	"corrector/pkg/verbosity"
 
 	"corrector/internal/analyzer"
+	"corrector/internal/customdict"
 )
 
 // =====================
@@ -27,6 +28,8 @@ type SpellCorrector struct {
 	morph       *analyzer.MorphAnalyzer
 	frequencies map[string]float64
 	vocabSet    map[string]bool
+	customWords map[string]bool
+	dict        *customdict.CustomDict
 	parseCache  sync.Map // map[string][]*analyzer.Parsed
 	logpCache   sync.Map // map[string]float64
 	distCache   sync.Map // map[string]float64, ключ: a+"\u0000"+b
@@ -434,7 +437,8 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 		if sc.config.FilterShortWords && len([]rune(xl)) <= 2 {
 			continue
 		}
-		inVocab := sc.vocabSet[xl]
+		inCustom := sc.customWords != nil && sc.customWords[xl]
+		inVocab := sc.vocabSet[xl] || inCustom
 
 		// кандидаты (из словаря / симспелла)
 		candTerms := sc.getCandidates(xl, sc.config.MaxEditDistance)
@@ -453,11 +457,11 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 
 		for _, y := range candTerms {
 			// Разрешаем оригинал и слова из словаря
-			if y != xl && !sc.vocabSet[y] {
+			if y != xl && !sc.vocabSet[y] && !sc.customWords[y] {
 				continue
 			}
 			morph := 0.0
-			if sc.vocabSet[y] {
+			if sc.vocabSet[y] && !sc.customWords[y] {
 				morph = sc.morphAgreementBonus(y, ctx, idx)
 			}
 
@@ -626,8 +630,8 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 // Инициализация
 // =====================
 
-func NewSpellCorrector(cfg CorrectorConfig, dictionaryPath string) (*SpellCorrector, error) {
-	sc := &SpellCorrector{config: cfg}
+func NewSpellCorrector(cfg CorrectorConfig, dictionaryPath string, dict *customdict.CustomDict) (*SpellCorrector, error) {
+	sc := &SpellCorrector{config: cfg, dict: dict, customWords: make(map[string]bool)}
 	// SymSpell
 	if cfg.UseSymSpell {
 		sc.symspell = symspell.NewSymSpell(
@@ -660,6 +664,7 @@ func NewSpellCorrector(cfg CorrectorConfig, dictionaryPath string) (*SpellCorrec
 	if err := sc.loadFrequencies(dictionaryPath); err != nil {
 		return nil, fmt.Errorf("ошибка загрузки частот: %v", err)
 	}
+	sc.loadCustomWords()
 	return sc, nil
 }
 
@@ -697,4 +702,57 @@ func (sc *SpellCorrector) loadFrequencies(path string) error {
 		}
 	}
 	return s.Err()
+}
+
+func (sc *SpellCorrector) loadCustomWords() {
+	if sc.dict == nil {
+		return
+	}
+	words, err := sc.dict.All()
+	if err != nil {
+		log.Printf("предупреждение: не удалось загрузить кастомные слова: %v", err)
+		return
+	}
+	const freq = 1_000_000_000
+	for _, w := range words {
+		lw := strings.ToLower(w)
+		sc.customWords[lw] = true
+		sc.vocabSet[lw] = true
+		sc.frequencies[lw] = float64(freq)
+		if sc.config.UseSymSpell && sc.symspell != nil {
+			sc.symspell.CreateDictionaryEntry(lw, freq)
+		}
+	}
+}
+
+// AddCustomWord adds a custom word to the dictionary and Redis store.
+func (sc *SpellCorrector) AddCustomWord(word string) error {
+	lw := strings.ToLower(word)
+	if sc.dict != nil {
+		if err := sc.dict.Add(lw); err != nil {
+			return err
+		}
+	}
+	const freq = 1_000_000_000
+	sc.customWords[lw] = true
+	sc.vocabSet[lw] = true
+	sc.frequencies[lw] = float64(freq)
+	if sc.config.UseSymSpell && sc.symspell != nil {
+		sc.symspell.CreateDictionaryEntry(lw, freq)
+	}
+	return nil
+}
+
+// RemoveCustomWord removes a custom word from the dictionary and Redis store.
+func (sc *SpellCorrector) RemoveCustomWord(word string) error {
+	lw := strings.ToLower(word)
+	if sc.dict != nil {
+		if err := sc.dict.Remove(lw); err != nil {
+			return err
+		}
+	}
+	delete(sc.customWords, lw)
+	delete(sc.vocabSet, lw)
+	delete(sc.frequencies, lw)
+	return nil
 }
