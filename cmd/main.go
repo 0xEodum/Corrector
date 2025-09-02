@@ -1,13 +1,17 @@
 package main
 
 import (
-	"bufio"
-	"fmt"
+	"encoding/json"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/redis/go-redis/v9"
+
 	sc "corrector/internal/corrector"
+	"corrector/internal/customdict"
 )
 
 func main() {
@@ -30,35 +34,109 @@ func main() {
 		KeyboardNearSub:  0.6,
 	}
 
-	dict := "ru.txt"
-	corrector, err := sc.NewSpellCorrector(cfg, dict, nil)
+	redisAddr := getenv("REDIS_ADDR", "localhost:6379")
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	redisDB := getEnvInt("REDIS_DB", 0)
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: redisPassword,
+		DB:       redisDB,
+	})
+
+	dict := customdict.New(client)
+
+	dictionaryPath := getenv("DICTIONARY_PATH", "ru.txt")
+	corrector, err := sc.NewSpellCorrector(cfg, dictionaryPath, dict)
 	if err != nil {
-		log.Fatalf("Ошибка инициализации: %v", err)
+		log.Fatalf("init error: %v", err)
 	}
 
-	fmt.Println("Spell Corrector v2. Введите текст (quit для выхода).")
-	scanner := bufio.NewScanner(os.Stdin)
-	for {
-		fmt.Print("Текст: ")
-		if !scanner.Scan() {
-			break
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/v1/correct", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
 		}
-		in := strings.TrimSpace(scanner.Text())
-		if strings.ToLower(in) == "quit" {
-			break
+		var req struct {
+			Text string `json:"text"`
 		}
-		if in == "" {
-			continue
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Text) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"})
+			return
 		}
-		res := corrector.CorrectText(in, false)
-		fmt.Printf("Исходный:     %s\n", res.Original)
-		fmt.Printf("Исправленный: %s\n", res.Corrected)
-		if len(res.Suggestions) > 0 {
-			fmt.Println("\nПредложения:")
-			for pos, info := range res.Suggestions {
-				fmt.Printf("  Позиция %d: '%s' -> [%s] (%s)\n", pos, info.Token, strings.Join(info.Suggestions, ", "), info.Decision)
-			}
+		res := corrector.CorrectText(req.Text, false)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"original":     res.Original,
+			"corrected":    res.Corrected,
+			"alternatives": res.Alternatives,
+		})
+	})
+
+	mux.HandleFunc("/api/v1/custom-word", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
 		}
-		fmt.Println(strings.Repeat("-", 50))
+		var req struct {
+			Word string `json:"word"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Word) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"})
+			return
+		}
+		if err := corrector.AddCustomWord(req.Word); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
+	mux.HandleFunc("/api/v1/custom-word/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.NotFound(w, r)
+			return
+		}
+		word := strings.TrimPrefix(r.URL.Path, "/api/v1/custom-word/")
+		if word == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "word is required"})
+			return
+		}
+		if err := corrector.RemoveCustomWord(word); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})
+
+	addr := getenv("HTTP_ADDR", ":8080")
+	log.Printf("listening on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, mux))
+}
+
+func getenv(key, def string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
 	}
+	return v
+}
+
+func getEnvInt(key string, def int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	if i, err := strconv.Atoi(v); err == nil {
+		return i
+	}
+	return def
 }
