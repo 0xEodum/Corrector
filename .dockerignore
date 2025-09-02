@@ -1,0 +1,65 @@
+# Git и версионный контроль
+.git
+.gitignore
+.gitattributes
+
+# Docker файлы
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Документация
+README.md
+*.md
+docs/
+
+# IDE и редакторы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS файлы
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+tmp/
+temp/
+*.tmp
+
+# Бинарные файлы (если есть)
+*.exe
+*.dll
+*.so
+*.dylib
+corrector
+main
+
+# Тесты и coverage
+*_test.go
+*.out
+coverage.txt
+.coverage/
+
+# Зависимости (будут загружены через go mod)
+vendor/
+
+# Конфигурационные файлы для разработки
+.env
+.env.local
+.env.development
+
+# Backup файлы
+*.bak
+*.backup
