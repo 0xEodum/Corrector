@@ -70,9 +70,9 @@ func main() {
 		res := corrector.CorrectText(req.Text, false)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"original":     res.Original,
-			"corrected":    res.Corrected,
-			"alternatives": res.Alternatives,
+			"original":    res.Original,
+			"corrected":   res.Corrected,
+			"suggestions": res.Suggestions,
 		})
 	})
 

@@ -666,16 +666,16 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 		alternatives = append(alternatives, altVariant{text: altText, score: altScore})
 	}
 	sort.Slice(alternatives, func(i, j int) bool { return alternatives[i].score > alternatives[j].score })
-	altStrings := make([]string, len(alternatives))
+
+	scoredSuggestions := make([]ScoredSuggestion, len(alternatives))
 	for i, a := range alternatives {
-		altStrings[i] = a.text
+		scoredSuggestions[i] = ScoredSuggestion{Text: a.text, Score: a.score}
 	}
 
 	return CorrectionResult{
-		Original:     text,
-		Corrected:    strings.Join(out, ""),
-		Alternatives: altStrings,
-		Suggestions:  sugByPos,
+		Original:    text,
+		Corrected:   strings.Join(out, ""),
+		Suggestions: scoredSuggestions,
 	}
 }
 

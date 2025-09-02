@@ -26,6 +26,11 @@ type Candidate struct {
 	Edits int
 }
 
+type ScoredSuggestion struct {
+	Text  string  `json:"text"`
+	Score float64 `json:"score"`
+}
+
 type SuggestionInfo struct {
 	Token       string   `json:"token"`
 	Suggestions []string `json:"suggestions"`
@@ -35,6 +40,7 @@ type SuggestionInfo struct {
 type CorrectionResult struct {
 	Original     string                 `json:"original"`
 	Corrected    string                 `json:"corrected"`
+	Suggestions  []ScoredSuggestion     `json:"suggestions,omitempty"` // ← НОВОЕ ПОЛЕ
 	Alternatives []string               `json:"alternatives,omitempty"`
-	Suggestions  map[int]SuggestionInfo `json:"suggestions"`
+	DetailedSugs map[int]SuggestionInfo `json:"detailed_suggestions,omitempty"`
 }
