@@ -413,6 +413,15 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 	copy(out, tokens)
 	sugByPos := make(map[int]SuggestionInfo)
 
+	totalScore := 0.0
+	type altChoice struct {
+		idx         int
+		altTerm     string
+		altScore    float64
+		chosenScore float64
+	}
+	var altChoices []altChoice
+
 	// индексы слов (не знаки)
 	var positions []int
 	for i, t := range tokens {
@@ -607,6 +616,24 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 			sugByPos[idx] = SuggestionInfo{Token: x, Suggestions: list, Decision: decision}
 		}
 
+		chosenScore := baseScore
+		for _, c := range scored {
+			if c.Term == chosen {
+				chosenScore = c.Score
+				break
+			}
+		}
+		totalScore += chosenScore
+
+		if chosen != xl {
+			for _, c := range scored {
+				if c.Term != chosen {
+					altChoices = append(altChoices, altChoice{idx: idx, altTerm: c.Term, altScore: c.Score, chosenScore: chosenScore})
+					break
+				}
+			}
+		}
+
 		// сохранить регистр
 		if chosen != xl {
 			if isTitle(x) {
@@ -619,10 +646,36 @@ func (sc *SpellCorrector) CorrectText(text string, debug bool) CorrectionResult 
 		}
 	}
 
+	type altVariant struct {
+		text  string
+		score float64
+	}
+	var alternatives []altVariant
+	for _, ch := range altChoices {
+		altOut := append([]string(nil), out...)
+		altTok := ch.altTerm
+		orig := tokens[ch.idx]
+		if isTitle(orig) {
+			altTok = title(altTok)
+		} else if isUpper(orig) {
+			altTok = strings.ToUpper(altTok)
+		}
+		altOut[ch.idx] = altTok
+		altText := strings.Join(altOut, "")
+		altScore := totalScore - ch.chosenScore + ch.altScore
+		alternatives = append(alternatives, altVariant{text: altText, score: altScore})
+	}
+	sort.Slice(alternatives, func(i, j int) bool { return alternatives[i].score > alternatives[j].score })
+	altStrings := make([]string, len(alternatives))
+	for i, a := range alternatives {
+		altStrings[i] = a.text
+	}
+
 	return CorrectionResult{
-		Original:    text,
-		Corrected:   strings.Join(out, ""),
-		Suggestions: sugByPos,
+		Original:     text,
+		Corrected:    strings.Join(out, ""),
+		Alternatives: altStrings,
+		Suggestions:  sugByPos,
 	}
 }
 
