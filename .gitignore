@@ -1,4 +1,2 @@
 *.txt
-go.mod
-go.sum
 *.dawg
